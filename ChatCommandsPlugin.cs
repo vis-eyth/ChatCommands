@@ -32,11 +32,11 @@ using UnityEngine.Networking;
 
 namespace ChatCommands
 {
-    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.1.0")]
+    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.2.0")]
     public class ChatCommandsPlugin : BaseUnityPlugin
     {
-        private Console _console;
-        private IDictionary _catalog;
+        private static Console _console;
+        private static IDictionary _catalog;
 
         private void Awake()
         {
@@ -58,7 +58,7 @@ namespace ChatCommands
             };
         }
 
-        private void ExecuteCommand(Chat.UserChatMessage message)
+        private static void ExecuteCommand(Chat.UserChatMessage message)
         {
             var callString = GetCommand(message.text);
             if (callString.Length == 0)
@@ -75,10 +75,13 @@ namespace ChatCommands
 
             try
             {
-                if (!_catalog.Contains(cmd))
+                var isCmd = _catalog.Contains(cmd);
+                if (!isCmd && _console.FindConVar(cmd) == null)
                     throw new ConCommandException("Command is not registered.");
 
-                var flags = _catalog[cmd].GetFieldValue<ConVarFlags>("flags");
+                var flags = isCmd
+                    ? _catalog[cmd].GetFieldValue<ConVarFlags>("flags")
+                    : _console.FindConVar(cmd).flags;
 
                 if ((flags & ConVarFlags.SenderMustBeServer) != ConVarFlags.None &&
                     !NetworkServer.active)
@@ -100,14 +103,22 @@ namespace ChatCommands
                     return;
                 }
 
-                var command = _catalog[cmd].GetFieldValue<Console.ConCommandDelegate>("action");
-
-                command(new ConCommandArgs
+                if (isCmd)
                 {
-                    sender = user,
-                    commandName = cmd,
-                    userArgs = args
-                });
+                    var command = _catalog[cmd].GetFieldValue<Console.ConCommandDelegate>("action");
+
+                    command(new ConCommandArgs
+                    {
+                        sender = user,
+                        commandName = cmd,
+                        userArgs = args
+                    });
+                }
+                else
+                {
+                    _console.FindConVar(cmd).SetString(args[0]);
+                }
+
 
                 ShowResponse($"Command \"{cmd}\" executed successfully.");
             }
@@ -132,7 +143,7 @@ namespace ChatCommands
                 ? ""
                 : CommandRegex.Match(input).Groups[1].Value.Trim();
 
-        private List<string> ParseCommand(string command, GameObject sender)
+        private static List<string> ParseCommand(string command, GameObject sender)
         {
             var lexer = Reflection
                 .GetNestedType<Console>("Lexer")
