@@ -24,6 +24,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using BepInEx;
 using RoR2;
@@ -32,43 +33,59 @@ using UnityEngine.Networking;
 
 namespace ChatCommands
 {
-    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.2.0")]
+    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.3.0")]
     public class ChatCommandsPlugin : BaseUnityPlugin
     {
         private static Console _console;
         private static IDictionary _catalog;
 
+        private static bool _listening;
+        private static List<Console.Log> _queue;
+
         private void Awake()
         {
-            On.RoR2.Console.Awake += (orig, self) =>
+            _listening = false;
+            _queue = new List<Console.Log>();
+            
+            Chat.onChatChanged += () =>
             {
-                _console = self;
-                _catalog = _console.GetFieldValue<IDictionary>("concommandCatalog");
-                orig(self);
-            };
-            On.RoR2.Chat.SendBroadcastChat_ChatMessageBase += (orig, message) =>
-            {
-                if (message is Chat.UserChatMessage msg && IsCommandSyntax(msg.text))
+                var message = Chat.readOnlyLog.Last();
+                if (IsCommandSyntax(message)
+                    && ParseSender(GetUsername(message)) != null
+                    && ParseSender(GetUsername(message)).GetComponent<NetworkUser>().isLocalPlayer)
                 {
-                    Chat.AddMessage(msg.ConstructChatString());
-                    ExecuteCommand(msg);
+                    ExecuteCommand(new Chat.UserChatMessage
+                    {
+                        sender = ParseSender(GetUsername(message)),
+                        text = message
+                    });
                 }
-                else
-                    orig(message);
+            };
+            Application.logMessageReceived += (message, trace, type) =>
+            {
+                if (_listening)
+                    _queue.Add(new Console.Log
+                    {
+                        logType = type,
+                        message = message,
+                        stackTrace = trace
+                    });
             };
         }
 
         private static void ExecuteCommand(Chat.UserChatMessage message)
         {
+            if (_console == null)
+                _console = Console.instance;
+            if (_catalog == null)
+                _catalog = _console.GetFieldValue<IDictionary>("concommandCatalog");
+            
             var callString = GetCommand(message.text);
             if (callString.Length == 0)
                 return;
 
             var user = message.sender.GetComponent<NetworkUser>();
             var args = ParseCommand(callString, message.sender);
-
-            Debug.Log(user.userName + " called command \"" + args[0] + "\" using chat with \"" +
-                      string.Join(" ", args) + "\".");
 
             var cmd = args[0];
             args.RemoveAt(0);
@@ -107,20 +124,26 @@ namespace ChatCommands
                 {
                     var command = _catalog[cmd].GetFieldValue<Console.ConCommandDelegate>("action");
 
+                    _listening = true;
                     command(new ConCommandArgs
                     {
                         sender = user,
                         commandName = cmd,
                         userArgs = args
                     });
+                    _listening = false;
+                    foreach (var log in _queue)
+                        ShowResponse(log.message, log.logType == LogType.Error);
+                    _queue.Clear();
+                    
+                    ShowResponse($"Command \"{cmd}\" executed successfully.");
                 }
                 else
                 {
                     _console.FindConVar(cmd).SetString(args[0]);
+                    
+                    ShowResponse($"Variable \"{cmd}\" set to \"{args[0]}\".");
                 }
-
-
-                ShowResponse($"Command \"{cmd}\" executed successfully.");
             }
             catch (ConCommandException ex)
             {
@@ -131,20 +154,28 @@ namespace ChatCommands
         private static void ShowResponse(string response, bool error = false)
         {
             var message = "<color=#" + (error ? "f08080" : "98fb98") + ">System: " + response + "</color>";
-            Chat.AddMessage(message);
+            typeof(Chat).GetFieldValue<List<string>>("log").InvokeMethod("Add", message);
         }
 
-        private static readonly Regex CommandRegex = new Regex(@"^\/([\d\w]+(?: | .+?)*)(?:$|;)");
+        private static readonly Regex CommandRegex =
+            new Regex(@"<color=#e5eefc><noparse>(.+?)<\/noparse>: <noparse>\/(.+?)<\/noparse><\/color>");
 
         private static bool IsCommandSyntax(string input) => CommandRegex.IsMatch(input);
-
-        private static string GetCommand(string input) =>
+        private static string GetUsername(string input) =>
             !IsCommandSyntax(input) || CommandRegex.Match(input).Groups.Count < 2
                 ? ""
                 : CommandRegex.Match(input).Groups[1].Value.Trim();
+        private static string GetCommand(string input) =>
+            !IsCommandSyntax(input) || CommandRegex.Match(input).Groups.Count < 3
+                ? ""
+                : CommandRegex.Match(input).Groups[2].Value.Trim();
 
         private static List<string> ParseCommand(string command, GameObject sender)
         {
+            // Console.Lexer does not take kindly to slashes, and even though we have removed the prefix already,
+            // the user might have used slashes somewhere else.
+            command = command.Replace('/', ' ');
+            
             var lexer = Reflection
                 .GetNestedType<Console>("Lexer")
                 .GetConstructor(new[] {typeof(string)})?
@@ -180,6 +211,17 @@ namespace ChatCommands
             }
 
             return args;
+        }
+
+        private static GameObject ParseSender(string username)
+        {
+            foreach (var user in NetworkUser.readOnlyLocalPlayersList)
+            {
+                if (user.userName == username)
+                    return user.gameObject;
+            }
+
+            return null;
         }
     }
 }
