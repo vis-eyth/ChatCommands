@@ -1,9 +1,6 @@
 ## ChatCommands - BepInEx plugin for commands via chat
 
-#### IMPORTANT: If you have a version pre 1.3.0 installed, commands will not work as a client, and as a host all commands by clients will be executed.
-##### Please update, the problem has since been fixed.
-
----
+##### PLEASE NOTE: Versions before 1.3.0 are not multiplayer safe - Please update.
 
 If you've ever had to use console commands a lot during a game, im sure you hated opening the console too.
 
@@ -11,33 +8,37 @@ So, here it is.
 
 Console commands, via chat. (That's all it does, I promise)
 
-To use, call the command just as you would in the console, but with a `/` just before the command. Eg. `say hi` can be
+To use, call the command just as you would in the console, but with a `/` (configurable) just before the command. Eg. `say hi` can be
 run from chat by writing `/say hi`. Please also note that only you see the response.
+
+
+##### If you have any problems with this plugin, feel free to shoot me a ping or PM on the [modding discord](https://discord.gg/hMdjd9y "Risk of Rain 2 Modding") - my handle is viseyth#3934.
+
+##### From a feature only point this plugin is complete. If you don't agree, feel free send me a message, too.
 
 ---
 
 #### ATTENTION: Using `/` before commands in the real console gives you a few seconds of not responding and an OutOfMemoryException!
 (It does work after the few seconds again, though.)
 
-If you have any problems with this plugin, feel free to shoot me a ping or PM on the [modding discord](https://discord.gg/hMdjd9y "Risk of Rain 2 Modding") - my handle is viseyth#3934.
-
-From a feature only point this plugin is complete, in my opinion. If you don't think so, you can send me a message, too.
-
 ---
 
 ### Features:
 #### Calling registered commands
-This plugin checks for registered console commands, and if the command is registered, runs the command via call to the
-console. So, as long as your favourite mod adds actual console commands, this mod will work with it with no extra
-configuration required.
+This plugin is able to run all registered console commands, internal and from mods. (If the mod was done right, and adds
+`ConCommand`s to `Console.concommandCatalog`)
 
-##### Setting registered variables (since 1.2.0)
-Yeah, I completely forgot about that. You can now set them just as in the console, eg. `/volume_master 10` or
-`/volume_master = 10`.
+#### Setting registered variables 
+You can set them just as in the console, eg. `/volume_master 10` or `/volume_master = 10`.
 
-##### Status response (since 1.1.0)
-Now calling and catching console functions by _itself_, will now actually show you the exception message if something
-went wrong. On the other side, since that means i had to walk the whole mile myself, this means the plugin will probably
-need attention on new updates.
+#### Console output in chat
+You will get all output you would have gotten when running in the console.
 
-##### Console output in chat (since 1.3.0)
+#### Status response
+You will get a response from system, if your command executed successfully. This includes text from custom
+`ConCommandExceptions` thrown inside console commands.
+
+#### Configurability `(v1.4.0+)`
+You are able to customize your prefix (default is `/`), and if you still want your commands shown after execution. You
+are also able to set the config to remove other players commands, although that only works if you both are using the
+same prefix.
