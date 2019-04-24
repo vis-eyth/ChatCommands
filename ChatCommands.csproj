@@ -4,7 +4,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>7</LangVersion>
         <Authors>viseyth</Authors>
-        <PackageVersion>1.4.0</PackageVersion>
+        <PackageVersion>1.4.1</PackageVersion>
     </PropertyGroup>
 
     <ItemGroup>

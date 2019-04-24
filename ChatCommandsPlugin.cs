@@ -24,6 +24,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using BepInEx;
 using BepInEx.Configuration;
@@ -33,7 +34,7 @@ using UnityEngine.Networking;
 
 namespace ChatCommands
 {
-    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.4.0")]
+    [BepInPlugin("com.viseyth.ror2.chatcommands", "ChatCommands", "1.4.1")]
     public class ChatCommandsPlugin : BaseUnityPlugin
     {
         private static ConfigWrapper<bool> _deleteLocalCommands;
@@ -79,7 +80,10 @@ namespace ChatCommands
             
             Chat.onChatChanged += () =>
             {
-                var str = _chatlog[_chatlog.Count - 1];
+                if (_chatlog.Count <= 0)
+                    return;
+            
+                var str = _chatlog.Last();
                 var msg = ReconstructFromString(str);
 
                 if (msg == null || !msg.text.StartsWith(_commandPrefix.Value[0].ToString()))
